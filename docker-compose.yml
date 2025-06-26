@@ -1,0 +1,14 @@
+version: '3.8'
+services:
+  nginx-file-browser:
+    image: nginx-file-browser:latest
+    build:
+      context: .
+    ports:
+      - "3101:3000"
+    volumes:
+      - ./public/files:/app/public/files:rw
+    environment:
+      - NODE_ENV=production
+      - STATIC_FILES_ROOT=/app/public/files
+    restart: unless-stopped
