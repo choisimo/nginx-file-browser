@@ -1,0 +1,115 @@
+import { type NextRequest, NextResponse } from "next/server"
+import { promises as fs } from "fs"
+import path from "path"
+
+// ... (기존 GET, POST 핸들러 코드 생략) ...
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { oldPath, newName } = body;
+
+    if (!oldPath || !newName || newName.includes('/') || newName.includes('..')) {
+      return NextResponse.json({ error: "잘못된 파라미터입니다." }, { status: 400 });
+    }
+
+    const safeOldPath = path.normalize(oldPath).replace(/^(\.\.[\/\\])+/, "");
+    const fullOldPath = path.join(STATIC_FILES_ROOT, safeOldPath);
+
+    const newPath = path.join(path.dirname(fullOldPath), newName);
+
+    const resolvedOldPath = path.resolve(fullOldPath);
+    const resolvedNewPath = path.resolve(newPath);
+    const resolvedRoot = path.resolve(STATIC_FILES_ROOT);
+
+    if (!resolvedOldPath.startsWith(resolvedRoot) || !resolvedNewPath.startsWith(resolvedRoot)) {
+      return NextResponse.json({ error: "잘못된 경로입니다." }, { status: 400 });
+    }
+
+    try {
+      await fs.access(newPath);
+      return NextResponse.json({ error: `이름이 이미 존재합니다: ${newName}` }, { status: 409 });
+    } catch {
+      // 새 경로가 존재하지 않으면 이름 변경 진행
+      await fs.rename(fullOldPath, newPath);
+      return NextResponse.json({ message: "이름이 성공적으로 변경되었습니다." }, { status: 200 });
+    }
+
+  } catch (error) {
+    console.error("Rename error:", error);
+    return NextResponse.json({ error: "이름 변경 중 오류가 발생했습니다." }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { pathToDelete } = await request.json();
+
+    if (!pathToDelete) {
+      return NextResponse.json({ error: "삭제할 경로가 제공되지 않았습니다." }, { status: 400 });
+    }
+
+    const safePath = path.normalize(pathToDelete).replace(/^(\.\.[\/\\])+/, "");
+    const fullPath = path.join(STATIC_FILES_ROOT, safePath);
+
+    const resolvedPath = path.resolve(fullPath);
+    const resolvedRoot = path.resolve(STATIC_FILES_ROOT);
+
+    if (!resolvedPath.startsWith(resolvedRoot) || resolvedPath === resolvedRoot) {
+      return NextResponse.json({ error: "잘못된 삭제 경로입니다." }, { status: 400 });
+    }
+
+    const stats = await fs.stat(fullPath);
+    if (stats.isDirectory()) {
+      await fs.rm(fullPath, { recursive: true, force: true });
+    } else {
+      await fs.unlink(fullPath);
+    }
+
+    return NextResponse.json({ message: "성공적으로 삭제되었습니다." }, { status: 200 });
+
+  } catch (error) {
+    console.error("Delete error:", error);
+    if (error.code === 'ENOENT') {
+      return NextResponse.json({ error: "삭제할 파일 또는 폴더가 존재하지 않습니다." }, { status: 404 });
+    }
+    return NextResponse.json({ error: "삭제 중 오류가 발생했습니다." }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { oldPath, newName } = body;
+
+    if (!oldPath || !newName || newName.includes('/') || newName.includes('..')) {
+      return NextResponse.json({ error: "잘못된 파라미터입니다." }, { status: 400 });
+    }
+
+    const safeOldPath = path.normalize(oldPath).replace(/^(\.\.[\\\\])+/, "");
+    const fullOldPath = path.join(STATIC_FILES_ROOT, safeOldPath);
+
+    const newPath = path.join(path.dirname(fullOldPath), newName);
+
+    const resolvedOldPath = path.resolve(fullOldPath);
+    const resolvedNewPath = path.resolve(newPath);
+    const resolvedRoot = path.resolve(STATIC_FILES_ROOT);
+
+    if (!resolvedOldPath.startsWith(resolvedRoot) || !resolvedNewPath.startsWith(resolvedRoot)) {
+      return NextResponse.json({ error: "잘못된 경로입니다." }, { status: 400 });
+    }
+
+    try {
+      await fs.access(newPath);
+      return NextResponse.json({ error: `이름이 이미 존재합니다: ${newName}` }, { status: 409 });
+    } catch {
+      // 새 경로가 존재하지 않으면 이름 변경 진행
+      await fs.rename(fullOldPath, newPath);
+      return NextResponse.json({ message: "이름이 성공적으로 변경되었습니다." }, { status: 200 });
+    }
+
+  } catch (error) {
+    console.error("Rename error:", error);
+    return NextResponse.json({ error: "이름 변경 중 오류가 발생했습니다." }, { status: 500 });
+  }
+}

@@ -10,11 +10,16 @@ const AI_PROVIDERS = ['Gemini', 'OpenAI', 'Perplexity'];
 interface SettingsDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  onSave: (settings: { pageLimit: number; viewMode: 'pagination' | 'infinite' }) => void;
+  initialPageLimit: number;
+  initialViewMode: 'pagination' | 'infinite';
 }
 
-export default function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
+export default function SettingsDialog({ isOpen, onClose, onSave, initialPageLimit, initialViewMode }: SettingsDialogProps) {
   const [provider, setProvider] = useState('');
   const [apiKey, setApiKey] = useState('');
+  const [pageLimit, setPageLimit] = useState(initialPageLimit);
+  const [viewMode, setViewMode] = useState(initialViewMode);
 
   useEffect(() => {
     if (isOpen) {
@@ -22,8 +27,10 @@ export default function SettingsDialog({ isOpen, onClose }: SettingsDialogProps)
       setProvider(savedProvider);
       const savedApiKey = localStorage.getItem(`${savedProvider.toLowerCase()}ApiKey`) || '';
       setApiKey(savedApiKey);
+      setPageLimit(initialPageLimit);
+      setViewMode(initialViewMode);
     }
-  }, [isOpen]);
+  }, [isOpen, initialPageLimit, initialViewMode]);
 
   const handleProviderChange = (newProvider: string) => {
     setProvider(newProvider);
@@ -34,6 +41,7 @@ export default function SettingsDialog({ isOpen, onClose }: SettingsDialogProps)
   const handleSave = () => {
     localStorage.setItem('aiProvider', provider);
     localStorage.setItem(`${provider.toLowerCase()}ApiKey`, apiKey);
+    onSave({ pageLimit, viewMode });
     onClose();
   };
 
@@ -66,6 +74,32 @@ export default function SettingsDialog({ isOpen, onClose }: SettingsDialogProps)
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="page-limit">페이지당 파일 수</Label>
+            <Select value={String(pageLimit)} onValueChange={(value) => setPageLimit(Number(value))}>
+              <SelectTrigger id="page-limit">
+                <SelectValue placeholder="페이지당 파일 수" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="20">20</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="view-mode">기본 보기 모드</Label>
+            <Select value={viewMode} onValueChange={(value: 'pagination' | 'infinite') => setViewMode(value)}>
+              <SelectTrigger id="view-mode">
+                <SelectValue placeholder="보기 모드" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pagination">페이지네이션</SelectItem>
+                <SelectItem value="infinite">무한 스크롤</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <DialogFooter>

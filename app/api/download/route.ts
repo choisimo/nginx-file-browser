@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { promises as fs } from "fs"
+import { promises as fs, createReadStream } from "fs"
 import path from "path"
 
 const getStaticFilesRoot = () => {
@@ -48,7 +48,6 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Cannot download directory" }, { status: 400 })
       }
 
-      const fileBuffer = await fs.readFile(fullPath)
       const fileName = path.basename(fullPath)
 
       // MIME 타입 결정
@@ -78,7 +77,22 @@ export async function GET(request: NextRequest) {
         contentType = mimeTypes[ext]
       }
 
-      return new NextResponse(fileBuffer, {
+      const stream = createReadStream(fullPath);
+      const readableStream = new ReadableStream({
+        start(controller) {
+          stream.on('data', (chunk) => {
+            controller.enqueue(chunk);
+          });
+          stream.on('end', () => {
+            controller.close();
+          });
+          stream.on('error', (err) => {
+            controller.error(err);
+          });
+        },
+      });
+
+      return new NextResponse(readableStream, {
         headers: {
           "Content-Type": contentType,
           "Content-Disposition": `attachment; filename="${encodeURIComponent(fileName)}"`,

@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { File, Folder, AlertCircle, RefreshCw, Download, ChevronUp, Archive } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { Checkbox } from "@/components/ui/checkbox"
+import { File, Folder, AlertCircle, RefreshCw, Download, ChevronUp } from "lucide-react"
 
 interface FileItem {
   name: string
@@ -13,7 +14,6 @@ interface FileItem {
   lastModified: string
   path: string
   extension?: string
-  isImage?: boolean
 }
 
 interface FileListResponse {
@@ -30,8 +30,6 @@ export default function FileExplorer() {
   const [error, setError] = useState<string | null>(null)
   const [currentPath, setCurrentPath] = useState("/")
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
-  const [downloadingZip, setDownloadingZip] = useState(false)
-  const { toast } = useToast()
 
   const fetchFiles = useCallback(
     async (path: string) => {
@@ -59,14 +57,7 @@ export default function FileExplorer() {
           return
         }
 
-        // 이미지 파일 타입 설정
-        const filesWithImageFlag = data.files.map(file => ({
-          ...file,
-          isImage: file.type === "file" && file.extension ? 
-            ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'].includes(file.extension) : false
-        }))
-
-        setFiles(filesWithImageFlag || [])
+        setFiles(data.files || [])
       } catch (error) {
         console.error("Fetch files error:", error)
         const errorMessage = error instanceof Error ? error.message : "파일 목록을 불러오는데 실패했습니다."
@@ -121,64 +112,6 @@ export default function FileExplorer() {
   const isAllSelected = files.length > 0 && selectedItems.size === files.length
   const hasSelectedItems = selectedItems.size > 0
 
-  // 벌크 ZIP 다운로드 핸들러
-  const handleBulkDownload = async () => {
-    if (selectedItems.size === 0) return
-
-    setDownloadingZip(true)
-    try {
-      // 선택된 항목들의 전체 경로 생성
-      const selectedFiles = Array.from(selectedItems).map(itemName => {
-        const fullPath = currentPath === "/" ? `/${itemName}` : `${currentPath}/${itemName}`
-        return fullPath
-      })
-
-      const response = await fetch("/api/download/zip", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          paths: selectedFiles,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "ZIP 파일 생성에 실패했습니다.")
-      }
-
-      // 파일 다운로드
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `files_${new Date().toISOString().slice(0, 10)}.zip`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-
-      // 성공 후 선택 해제
-      setSelectedItems(new Set())
-      toast({
-        title: "다운로드 완료",
-        description: `${selectedItems.size}개 파일이 ZIP으로 다운로드되었습니다.`,
-      })
-    } catch (error) {
-      console.error("Bulk download error:", error)
-      const errorMessage = error instanceof Error ? error.message : "일괄 다운로드 중 오류가 발생했습니다."
-      setError(errorMessage)
-      toast({
-        title: "다운로드 실패",
-        description: errorMessage,
-        variant: "destructive",
-      })
-    } finally {
-      setDownloadingZip(false)
-    }
-  }
-
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return "0 B"
     const k = 1024
@@ -194,10 +127,6 @@ export default function FileExplorer() {
     return <File className="h-5 w-5 text-gray-400" />
   }
 
-  const getFileName = (name: string) => {
-    return name.length > 30 ? `${name.substring(0, 27)}...` : name
-  }
-
   return (
     <div className="container mx-auto p-6 max-w-6xl">
       <div className="space-y-6">
@@ -210,20 +139,10 @@ export default function FileExplorer() {
           
           {/* 선택된 항목 정보 및 액션 */}
           {hasSelectedItems && (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">
                 {selectedItems.size}개 선택됨
               </span>
-              <Button 
-                variant="default" 
-                size="sm"
-                onClick={handleBulkDownload}
-                disabled={downloadingZip}
-                className="flex items-center gap-1"
-              >
-                <Archive className="h-4 w-4" />
-                {downloadingZip ? "압축 중..." : "ZIP 다운로드"}
-              </Button>
               <Button 
                 variant="outline" 
                 size="sm"
@@ -250,7 +169,7 @@ export default function FileExplorer() {
         )}
 
         {/* Current Path with Navigation */}
-        <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+        <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
           {currentPath !== "/" && (
             <Button
               variant="outline"
@@ -262,9 +181,7 @@ export default function FileExplorer() {
               상위 폴더
             </Button>
           )}
-          <span className="text-sm">
-            현재 경로: <code className="bg-background px-1 py-0.5 rounded text-xs">{currentPath}</code>
-          </span>
+          <span className="text-sm">현재 경로: {currentPath}</span>
         </div>
 
         {/* Loading */}
@@ -276,70 +193,63 @@ export default function FileExplorer() {
 
         {/* File List */}
         {!loading && (
-          <div className="border rounded-lg overflow-hidden">
-            {/* 테이블 헤더 */}
+          <div className="space-y-2">
+            {/* 전체 선택 헤더 */}
             {files.length > 0 && (
-              <div className="bg-muted/50 px-4 py-3 border-b">
-                <div className="flex items-center gap-4">
-                  <input
-                    type="checkbox"
-                    checked={isAllSelected}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  <span className="text-sm font-medium">
-                    전체 선택 ({files.length}개 항목)
-                  </span>
-                </div>
-              </div>
+              <Card className="bg-muted/50">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-3">
+                    <Checkbox
+                      checked={isAllSelected}
+                      onCheckedChange={handleSelectAll}
+                      className="h-4 w-4"
+                    />
+                    <span className="text-sm font-medium">
+                      전체 선택 ({files.length}개 항목)
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
             )}
             
-            {/* 파일 목록 */}
-            <div className="divide-y">
-              {files.map((file, index) => (
-                <div 
-                  key={`${file.path}-${index}`} 
-                  className={`flex items-center gap-4 p-4 hover:bg-muted/50 transition-colors ${selectedItems.has(file.name) ? 'bg-primary/10' : ''}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedItems.has(file.name)}
-                    onChange={() => handleSelectItem(file.name)}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  
-                  <div className="flex items-center gap-2 flex-shrink-0">
+            {files.map((file, index) => (
+              <Card key={`${file.path}-${index}`} className={`hover:shadow-lg transition-shadow ${selectedItems.has(file.name) ? 'ring-2 ring-primary' : ''}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-4">
+                    <Checkbox
+                      checked={selectedItems.has(file.name)}
+                      onCheckedChange={() => handleSelectItem(file.name)}
+                      className="h-4 w-4"
+                    />
                     {getFileIcon(file)}
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div 
-                      className={`font-medium truncate ${file.type === "directory" ? "cursor-pointer hover:underline text-blue-600" : ""}`}
-                      onClick={() => {
-                        if (file.type === "directory") {
-                          handleFolderClick(file.path)
-                        }
-                      }}
-                      title={file.name}
-                    >
-                      {getFileName(file.name)}
+                    <div className="flex-1">
+                      <h3 
+                        className="font-medium cursor-pointer hover:underline"
+                        onClick={() => {
+                          if (file.type === "directory") {
+                            handleFolderClick(file.path)
+                          }
+                        }}
+                      >
+                        {file.name}
+                      </h3>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <span>{formatFileSize(file.size)}</span>
+                        <span>{new Date(file.lastModified).toLocaleString("ko-KR")}</span>
+                      </div>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      {formatFileSize(file.size)} • {new Date(file.lastModified).toLocaleDateString("ko-KR")}
-                      {file.isImage && <span className="ml-2 text-xs bg-green-100 text-green-800 px-1 rounded">이미지</span>}
-                    </div>
+                    {file.type === "file" && (
+                      <Button variant="outline" size="sm" asChild>
+                        <a href={`/api/download?path=${encodeURIComponent(file.path)}`} download>
+                          <Download className="h-4 w-4 mr-1" />
+                          다운로드
+                        </a>
+                      </Button>
+                    )}
                   </div>
-                  
-                  {file.type === "file" && (
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={`/api/download?path=${encodeURIComponent(file.path)}`} download>
-                        <Download className="h-4 w-4" />
-                      </a>
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         )}
 

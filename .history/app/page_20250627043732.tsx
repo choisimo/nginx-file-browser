@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Checkbox } from "@/components/ui/checkbox"
 import { File, Folder, AlertCircle, RefreshCw, Download, ChevronUp, Archive } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
 
 interface FileItem {
   name: string
@@ -13,7 +14,6 @@ interface FileItem {
   lastModified: string
   path: string
   extension?: string
-  isImage?: boolean
 }
 
 interface FileListResponse {
@@ -31,7 +31,6 @@ export default function FileExplorer() {
   const [currentPath, setCurrentPath] = useState("/")
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
   const [downloadingZip, setDownloadingZip] = useState(false)
-  const { toast } = useToast()
 
   const fetchFiles = useCallback(
     async (path: string) => {
@@ -59,14 +58,7 @@ export default function FileExplorer() {
           return
         }
 
-        // 이미지 파일 타입 설정
-        const filesWithImageFlag = data.files.map(file => ({
-          ...file,
-          isImage: file.type === "file" && file.extension ? 
-            ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'].includes(file.extension) : false
-        }))
-
-        setFiles(filesWithImageFlag || [])
+        setFiles(data.files || [])
       } catch (error) {
         console.error("Fetch files error:", error)
         const errorMessage = error instanceof Error ? error.message : "파일 목록을 불러오는데 실패했습니다."
@@ -161,19 +153,9 @@ export default function FileExplorer() {
 
       // 성공 후 선택 해제
       setSelectedItems(new Set())
-      toast({
-        title: "다운로드 완료",
-        description: `${selectedItems.size}개 파일이 ZIP으로 다운로드되었습니다.`,
-      })
     } catch (error) {
       console.error("Bulk download error:", error)
-      const errorMessage = error instanceof Error ? error.message : "일괄 다운로드 중 오류가 발생했습니다."
-      setError(errorMessage)
-      toast({
-        title: "다운로드 실패",
-        description: errorMessage,
-        variant: "destructive",
-      })
+      setError(error instanceof Error ? error.message : "일괄 다운로드 중 오류가 발생했습니다.")
     } finally {
       setDownloadingZip(false)
     }
@@ -194,10 +176,6 @@ export default function FileExplorer() {
     return <File className="h-5 w-5 text-gray-400" />
   }
 
-  const getFileName = (name: string) => {
-    return name.length > 30 ? `${name.substring(0, 27)}...` : name
-  }
-
   return (
     <div className="container mx-auto p-6 max-w-6xl">
       <div className="space-y-6">
@@ -210,27 +188,29 @@ export default function FileExplorer() {
           
           {/* 선택된 항목 정보 및 액션 */}
           {hasSelectedItems && (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
               <span className="text-sm text-muted-foreground">
                 {selectedItems.size}개 선택됨
               </span>
-              <Button 
-                variant="default" 
-                size="sm"
-                onClick={handleBulkDownload}
-                disabled={downloadingZip}
-                className="flex items-center gap-1"
-              >
-                <Archive className="h-4 w-4" />
-                {downloadingZip ? "압축 중..." : "ZIP 다운로드"}
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setSelectedItems(new Set())}
-              >
-                선택 해제
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="default" 
+                  size="sm"
+                  onClick={handleBulkDownload}
+                  disabled={downloadingZip}
+                  className="flex items-center gap-1"
+                >
+                  <Archive className="h-4 w-4" />
+                  {downloadingZip ? "압축 중..." : "ZIP 다운로드"}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setSelectedItems(new Set())}
+                >
+                  선택 해제
+                </Button>
+              </div>
             </div>
           )}
         </div>
@@ -250,21 +230,25 @@ export default function FileExplorer() {
         )}
 
         {/* Current Path with Navigation */}
-        <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-          {currentPath !== "/" && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleGoBack}
-              className="flex items-center gap-1"
-            >
-              <ChevronUp className="h-4 w-4" />
-              상위 폴더
-            </Button>
-          )}
-          <span className="text-sm">
-            현재 경로: <code className="bg-background px-1 py-0.5 rounded text-xs">{currentPath}</code>
-          </span>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 bg-muted/30 rounded-lg border">
+          <div className="flex items-center gap-2">
+            {currentPath !== "/" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleGoBack}
+                className="flex items-center gap-1"
+              >
+                <ChevronUp className="h-4 w-4" />
+                <span className="hidden sm:inline">상위 폴더</span>
+                <span className="sm:hidden">상위</span>
+              </Button>
+            )}
+            <span className="text-sm font-medium">현재 경로:</span>
+          </div>
+          <code className="text-sm bg-background px-2 py-1 rounded border break-all">
+            {currentPath}
+          </code>
         </div>
 
         {/* Loading */}
@@ -281,11 +265,10 @@ export default function FileExplorer() {
             {files.length > 0 && (
               <div className="bg-muted/50 px-4 py-3 border-b">
                 <div className="flex items-center gap-4">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={isAllSelected}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300"
+                    onCheckedChange={handleSelectAll}
+                    className="h-4 w-4"
                   />
                   <span className="text-sm font-medium">
                     전체 선택 ({files.length}개 항목)
@@ -301,11 +284,10 @@ export default function FileExplorer() {
                   key={`${file.path}-${index}`} 
                   className={`flex items-center gap-4 p-4 hover:bg-muted/50 transition-colors ${selectedItems.has(file.name) ? 'bg-primary/10' : ''}`}
                 >
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={selectedItems.has(file.name)}
-                    onChange={() => handleSelectItem(file.name)}
-                    className="h-4 w-4 rounded border-gray-300"
+                    onCheckedChange={() => handleSelectItem(file.name)}
+                    className="h-4 w-4"
                   />
                   
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -320,13 +302,11 @@ export default function FileExplorer() {
                           handleFolderClick(file.path)
                         }
                       }}
-                      title={file.name}
                     >
-                      {getFileName(file.name)}
+                      {file.name}
                     </div>
                     <div className="text-sm text-muted-foreground">
                       {formatFileSize(file.size)} • {new Date(file.lastModified).toLocaleDateString("ko-KR")}
-                      {file.isImage && <span className="ml-2 text-xs bg-green-100 text-green-800 px-1 rounded">이미지</span>}
                     </div>
                   </div>
                   

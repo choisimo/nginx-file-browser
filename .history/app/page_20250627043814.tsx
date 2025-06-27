@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { File, Folder, AlertCircle, RefreshCw, Download, ChevronUp, Archive } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
 
 interface FileItem {
   name: string
@@ -13,7 +13,6 @@ interface FileItem {
   lastModified: string
   path: string
   extension?: string
-  isImage?: boolean
 }
 
 interface FileListResponse {
@@ -31,7 +30,6 @@ export default function FileExplorer() {
   const [currentPath, setCurrentPath] = useState("/")
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
   const [downloadingZip, setDownloadingZip] = useState(false)
-  const { toast } = useToast()
 
   const fetchFiles = useCallback(
     async (path: string) => {
@@ -59,14 +57,7 @@ export default function FileExplorer() {
           return
         }
 
-        // 이미지 파일 타입 설정
-        const filesWithImageFlag = data.files.map(file => ({
-          ...file,
-          isImage: file.type === "file" && file.extension ? 
-            ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'].includes(file.extension) : false
-        }))
-
-        setFiles(filesWithImageFlag || [])
+        setFiles(data.files || [])
       } catch (error) {
         console.error("Fetch files error:", error)
         const errorMessage = error instanceof Error ? error.message : "파일 목록을 불러오는데 실패했습니다."
@@ -161,19 +152,9 @@ export default function FileExplorer() {
 
       // 성공 후 선택 해제
       setSelectedItems(new Set())
-      toast({
-        title: "다운로드 완료",
-        description: `${selectedItems.size}개 파일이 ZIP으로 다운로드되었습니다.`,
-      })
     } catch (error) {
       console.error("Bulk download error:", error)
-      const errorMessage = error instanceof Error ? error.message : "일괄 다운로드 중 오류가 발생했습니다."
-      setError(errorMessage)
-      toast({
-        title: "다운로드 실패",
-        description: errorMessage,
-        variant: "destructive",
-      })
+      setError(error instanceof Error ? error.message : "일괄 다운로드 중 오류가 발생했습니다.")
     } finally {
       setDownloadingZip(false)
     }
@@ -192,10 +173,6 @@ export default function FileExplorer() {
       return <Folder className="h-5 w-5 text-blue-500" />
     }
     return <File className="h-5 w-5 text-gray-400" />
-  }
-
-  const getFileName = (name: string) => {
-    return name.length > 30 ? `${name.substring(0, 27)}...` : name
   }
 
   return (
@@ -281,11 +258,10 @@ export default function FileExplorer() {
             {files.length > 0 && (
               <div className="bg-muted/50 px-4 py-3 border-b">
                 <div className="flex items-center gap-4">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={isAllSelected}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300"
+                    onCheckedChange={handleSelectAll}
+                    className="h-4 w-4"
                   />
                   <span className="text-sm font-medium">
                     전체 선택 ({files.length}개 항목)
@@ -301,11 +277,10 @@ export default function FileExplorer() {
                   key={`${file.path}-${index}`} 
                   className={`flex items-center gap-4 p-4 hover:bg-muted/50 transition-colors ${selectedItems.has(file.name) ? 'bg-primary/10' : ''}`}
                 >
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={selectedItems.has(file.name)}
-                    onChange={() => handleSelectItem(file.name)}
-                    className="h-4 w-4 rounded border-gray-300"
+                    onCheckedChange={() => handleSelectItem(file.name)}
+                    className="h-4 w-4"
                   />
                   
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -320,13 +295,11 @@ export default function FileExplorer() {
                           handleFolderClick(file.path)
                         }
                       }}
-                      title={file.name}
                     >
-                      {getFileName(file.name)}
+                      {file.name}
                     </div>
                     <div className="text-sm text-muted-foreground">
                       {formatFileSize(file.size)} • {new Date(file.lastModified).toLocaleDateString("ko-KR")}
-                      {file.isImage && <span className="ml-2 text-xs bg-green-100 text-green-800 px-1 rounded">이미지</span>}
                     </div>
                   </div>
                   
